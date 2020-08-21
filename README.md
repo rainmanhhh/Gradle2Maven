@@ -18,7 +18,7 @@ from next time, you can just run `java Gradle2Maven.class` once because there is
 ## default config
 default config values in `config.properties` 
 
-`gradleCachePath`: `$GRADLE_USER_HOME/caches/modules-2/files-2.1` or `$USER_HOME/.gradle/caches/modules-2/files-2.1` if `$GRADLE_USER_HOME` not set 
+`gradleCachePath`: `$GRADLE_USER_HOME/caches/modules-2/files-2.1`(or `$USER_HOME/.gradle/caches/modules-2/files-2.1` if `$GRADLE_USER_HOME` not set)
 
 `mavenLocalRepoPath`: `$M2_HOME/repository`(or `$USER_HOME/.m2/repository` if `$M2_HOME` not set) 
 
