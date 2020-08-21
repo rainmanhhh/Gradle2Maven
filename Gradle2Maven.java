@@ -9,18 +9,22 @@ import java.nio.file.StandardCopyOption;
 import java.util.Arrays;
 import java.util.Objects;
 import java.util.Properties;
+import java.util.regex.Pattern;
 
 public class Gradle2Maven implements Runnable {
   static final String KeyGradleCachePath = "gradleCachePath";
   static final String KeyMavenLocalRepoPath = "mavenLocalRepoPath";
+  static final String KeyExclude = "exclude";
   static final String KeyDryRun = "dryRun";
   final Path gradleCachePath;
   final Path mavenLocalRepoPath;
+  final Pattern exclude;
   final boolean dryRun;
 
-  Gradle2Maven(String gradleCachePath, String mavenLocalRepoPath, boolean dryRun) {
+  Gradle2Maven(String gradleCachePath, String mavenLocalRepoPath, String exclude, boolean dryRun) {
     this.gradleCachePath = Paths.get(Objects.requireNonNull(gradleCachePath));
     this.mavenLocalRepoPath = Paths.get(Objects.requireNonNull(mavenLocalRepoPath));
+    this.exclude = Pattern.compile(exclude == null ? "" : exclude);
     this.dryRun = dryRun;
   }
 
@@ -38,17 +42,23 @@ public class Gradle2Maven implements Runnable {
     }
     String gradleCachePath = config.getProperty(KeyGradleCachePath);
     String mavenLocalRepoPath = config.getProperty(KeyMavenLocalRepoPath);
+    String exclude = config.getProperty(KeyExclude);
     boolean dryRun = Boolean.parseBoolean(config.getProperty(KeyDryRun, String.valueOf(false)));
-    new Gradle2Maven(gradleCachePath, mavenLocalRepoPath, dryRun).run();
+    new Gradle2Maven(gradleCachePath, mavenLocalRepoPath, exclude, dryRun).run();
   }
 
   @Override
   public void run() {
-    System.out.println("moving caches from " + KeyGradleCachePath + ": " + gradleCachePath + " to " + KeyMavenLocalRepoPath + ": " + mavenLocalRepoPath);
+    System.out.println("moving caches from " + KeyGradleCachePath + ": " + gradleCachePath + " to " + KeyMavenLocalRepoPath + ": " + mavenLocalRepoPath + ", exclude: " + exclude);
     //gradle cache item path format：cacheRoot/group/artifact/version/hash/item
     for (Path groupDir : subDirs(gradleCachePath)) {
       for (Path artifactDir : subDirs(groupDir)) {
         for (Path versionDir: subDirs(artifactDir)) {
+          String GAV = groupDir.getFileName() + "/" + artifactDir.getFileName() + "/" + versionDir.getFileName();
+          if (exclude.matcher(GAV).matches()) {
+            System.out.println("skip excluded dir: " + GAV);
+            continue; //skip excluded dirs
+          }
           for (Path hashDir: subDirs(versionDir)) {
             moveHashDirToMaven(groupDir, versionDir, hashDir);
           }
@@ -58,7 +68,7 @@ public class Gradle2Maven implements Runnable {
       }
       if (!dryRun) deleteEmptyDir(groupDir);
     }
-    System.out.println("move caches success");
+    if (!dryRun) System.out.println("move caches success");
   }
 
   void moveHashDirToMaven(Path groupDir, Path versionDir, Path hashDir) {
@@ -117,10 +127,9 @@ public class Gradle2Maven implements Runnable {
   }
 
   static String getDefaultConfig() {
-    String gradleCachePath = getDefaultGradleCachePath();
-    String mavenLocalRepoPath = getDefaultMavenLocalRepoPath();
-    return KeyGradleCachePath + "=" + gradleCachePath + "\n"
-      + KeyMavenLocalRepoPath + "=" + mavenLocalRepoPath + "\n"
+    return KeyGradleCachePath + "=" + getDefaultGradleCachePath() + "\n"
+      + KeyMavenLocalRepoPath + "=" + getDefaultMavenLocalRepoPath() + "\n"
+      + KeyExclude + "=" + getDefaultExclude() + "\n"
       + KeyDryRun + "=true";
   }
 
@@ -153,5 +162,9 @@ public class Gradle2Maven implements Runnable {
 
   static String getDefaultMavenLocalRepoPath() {
     return getM2Home() + "/repository";
+  }
+
+  static String getDefaultExclude() {
+    return "gradle/gradle/.+";
   }
 }
